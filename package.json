@@ -1,0 +1,45 @@
+{
+  "name": "@chiguh28/x-post-scheduler",
+  "version": "1.0.0",
+  "description": "Markdown形式の投稿スケジュールをXの予約投稿に一括登録するCLI+Web UIツール",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "x-post-scheduler": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').cpSync('src/server/public', 'dist/server/public', {recursive: true})\"",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "server": "node dist/index.js server",
+    "login": "node dist/index.js login",
+    "dist": "bash scripts/build-dist.sh"
+  },
+  "keywords": [
+    "x",
+    "twitter",
+    "scheduler",
+    "automation",
+    "playwright"
+  ],
+  "author": "chiguh28",
+  "license": "MIT",
+  "dependencies": {
+    "@chiguh28/x-share": "file:../x-share",
+    "commander": "^12.1.0",
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.12",
+    "playwright": "^1.58.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2",
+    "vitest": "^4.1.1"
+  }
+}

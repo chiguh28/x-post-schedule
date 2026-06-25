@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>x-post-scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0a1120;
+  --bg-base:#111b2e;
+  --bg-card:#162032;
+  --bg-card-hover:#1a2740;
+  --bg-input:#0d1526;
+  --border:#1e3050;
+  --border-focus:#1da1f2;
+  --text-primary:#e7ecf0;
+  --text-secondary:#8899a6;
+  --text-muted:#536471;
+  --accent:#1da1f2;
+  --accent-dim:rgba(29,161,242,.12);
+  --accent-glow:rgba(29,161,242,.25);
+  --success:#00c853;
+  --success-dim:rgba(0,200,83,.12);
+  --warning:#ffab00;
+  --warning-dim:rgba(255,171,0,.12);
+  --danger:#f4212e;
+  --danger-dim:rgba(244,33,46,.12);
+  --radius:12px;
+  --radius-sm:8px;
+  --radius-xs:6px;
+  --shadow:0 2px 16px rgba(0,0,0,.35);
+  --font-body:'IBM Plex Sans JP','Hiragino Kaku Gothic ProN',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{
+  font-family:var(--font-body);
+  background:var(--bg-deep);
+  color:var(--text-primary);
+  min-height:100vh;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+/* === HEADER === */
+.header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,17,32,.88);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  padding:0 2rem;
+}
+.header-inner{
+  max-width:960px;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;
+  height:60px;
+}
+.logo{display:flex;align-items:center;gap:.6rem}
+.logo-icon{
+  width:32px;height:32px;
+  background:var(--accent);
+  border-radius:8px;
+  display:grid;place-items:center;
+  font-weight:600;font-size:14px;color:#fff;
+  box-shadow:0 0 20px var(--accent-glow);
+}
+.logo-text{font-weight:600;font-size:1.05rem;letter-spacing:-.02em}
+.logo-text span{color:var(--text-muted);font-weight:400;margin-left:.3rem;font-size:.8rem}
+
+.session-indicator{
+  display:flex;align-items:center;gap:.5rem;
+  font-size:.8rem;color:var(--text-secondary);
+  padding:.4rem .8rem;
+  border-radius:20px;
+  border:1px solid var(--border);
+  cursor:default;
+  transition:all .2s;
+}
+.session-indicator:hover{border-color:var(--text-muted)}
+.session-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--success);
+  box-shadow:0 0 8px rgba(0,200,83,.5);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* === MAIN LAYOUT === */
+.main{max-width:960px;margin:0 auto;padding:1.5rem 2rem 4rem}
+
+/* === MARKDOWN INPUT SECTION === */
+.md-section{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  margin-bottom:1.5rem;
+  transition:border-color .3s;
+}
+.md-section:focus-within{border-color:var(--accent)}
+.md-section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.8rem 1.2rem;
+  border-bottom:1px solid var(--border);
+}
+.md-section-title{
+  font-size:.82rem;font-weight:500;color:var(--text-secondary);
+  display:flex;align-items:center;gap:.5rem;
+}
+.md-section-title svg{opacity:.5}
+.md-format-hint{
+  font-size:.7rem;color:var(--text-muted);
+  font-family:var(--font-mono);
+}
+
+.md-drop-zone{
+  position:relative;
+  min-height:160px;
+  transition:all .3s;
+}
+.md-drop-zone.dragging{background:var(--accent-dim)}
+.md-drop-zone.dragging::after{
+  content:'Markdown ファイルをドロップ';
+  position:absolute;inset:0;
+  display:grid;place-items:center;
+  font-size:.95rem;color:var(--accent);
+  border:2px dashed var(--accent);
+  border-radius:0 0 var(--radius) var(--radius);
+  pointer-events:none;
+  z-index:2;
+}
+.md-textarea{
+  width:100%;min-height:160px;
+  padding:1rem 1.2rem;
+  background:transparent;
+  border:none;outline:none;
+  color:var(--text-primary);
+  font-family:var(--font-mono);
+  font-size:.82rem;
+  line-height:1.7;
+  resize:vertical;
+}
+.md-textarea::placeholder{color:var(--text-muted)}
+
+.md-actions{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.7rem 1.2rem;
+  border-top:1px solid var(--border);
+  background:rgba(0,0,0,.15);
+}
+.md-file-label{
+  display:flex;align-items:center;gap:.4rem;
+  font-size:.78rem;color:var(--text-muted);
+  cursor:pointer;padding:.4rem .7rem;
+  border-radius:var(--radius-xs);
+  transition:all .2s;
+}
+.md-file-label:hover{color:var(--text-secondary);background:rgba(255,255,255,.04)}
+.md-file-label input{display:none}
+
+.btn{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.5rem 1.1rem;
+  border-radius:var(--radius-xs);
+  font-size:.82rem;font-weight:500;
+  font-family:var(--font-body);
+  border:none;cursor:pointer;
+  transition:all .15s;
+  line-height:1.4;
+}
+.btn-primary{
+  background:var(--accent);color:#fff;
+  box-shadow:0 0 20px var(--accent-glow);
+}
+.btn-primary:hover{background:#1a8cd8;box-shadow:0 0 28px var(--accent-glow)}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{
+  background:transparent;color:var(--text-secondary);
+  border:1px solid var(--border);
+}
+.btn-ghost:hover{border-color:var(--text-muted);color:var(--text-primary)}
+.btn-danger{background:var(--danger-dim);color:var(--danger);border:1px solid rgba(244,33,46,.2)}
+.btn-danger:hover{background:rgba(244,33,46,.2)}
+.btn-sm{padding:.35rem .7rem;font-size:.75rem}
+
+/* === SUMMARY BAR === */
+.summary-bar{
+  display:flex;align-items:center;gap:.6rem;
+  margin-bottom:1.2rem;
+  flex-wrap:wrap;
+}
+.summary-chip{
+  display:flex;align-items:center;gap:.4rem;
+  padding:.35rem .75rem;
+  border-radius:20px;
+  font-size:.78rem;font-weight:500;
+  border:1px solid var(--border);
+  color:var(--text-secondary);
+}
+.summary-chip .num{
+  font-family:var(--font-mono);
+  font-weight:600;font-size:.85rem;
+}
+.summary-chip.has-images .num{color:var(--accent)}
+.summary-chip.has-errors .num{color:var(--danger)}
+.summary-chip.total .num{color:var(--text-primary)}
+
+.summary-spacer{flex:1}
+
+/* === PROGRESS === */
+.progress-section{
+  margin-bottom:1.2rem;
+  display:none;
+}
+.progress-section.active{display:block}
+.progress-bar-outer{
+  height:4px;
+  background:var(--bg-input);
+  border-radius:2px;
+  overflow:hidden;
+  margin-bottom:.5rem;
+}
+.progress-bar-inner{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),#4ecdc4);
+  border-radius:2px;
+  transition:width .6s ease;
+}
+.progress-label{
+  display:flex;justify-content:space-between;
+  font-size:.75rem;color:var(--text-muted);
+  font-family:var(--font-mono);
+}
+
+/* === POST CARDS === */
+.post-list{display:flex;flex-direction:column;gap:1rem}
+
+.post-card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  transition:all .25s;
+  animation:cardIn .4s ease both;
+}
+.post-card:hover{border-color:rgba(29,161,242,.25);box-shadow:var(--shadow)}
+.post-card.scheduling{border-color:var(--accent);box-shadow:0 0 24px var(--accent-glow)}
+.post-card.scheduled{border-color:var(--success);opacity:.8}
+.post-card.failed{border-color:var(--danger)}
+
+@keyframes cardIn{
+  from{opacity:0;transform:translateY(12px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.post-card:nth-child(2){animation-delay:.08s}
+.post-card:nth-child(3){animation-delay:.16s}
+.post-card:nth-child(4){animation-delay:.24s}
+.post-card:nth-child(5){animation-delay:.32s}
+
+.post-card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.7rem 1rem;
+  border-bottom:1px solid var(--border);
+  background:rgba(0,0,0,.12);
+}
+.post-number{
+  font-family:var(--font-mono);
+  font-size:.7rem;font-weight:500;
+  color:var(--text-muted);
+  background:rgba(255,255,255,.04);
+  padding:.2rem .5rem;
+  border-radius:4px;
+}
+.post-header-right{display:flex;align-items:center;gap:.6rem}
+
+.status-badge{
+  display:inline-flex;align-items:center;gap:.3rem;
+  padding:.2rem .6rem;
+  border-radius:20px;
+  font-size:.7rem;font-weight:500;
+  transition:all .3s;
+}
+.status-badge.pending{background:var(--accent-dim);color:var(--accent)}
+.status-badge.scheduling{
+  background:var(--warning-dim);color:var(--warning);
+  animation:statusPulse 1.2s ease-in-out infinite;
+}
+@keyframes statusPulse{0%,100%{opacity:1}50%{opacity:.6}}
+.status-badge.scheduled{background:var(--success-dim);color:var(--success)}
+.status-badge.failed{background:var(--danger-dim);color:var(--danger)}
+
+.status-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.post-delete{
+  width:28px;height:28px;
+  display:grid;place-items:center;
+  background:transparent;border:none;
+  color:var(--text-muted);cursor:pointer;
+  border-radius:6px;font-size:1rem;
+  transition:all .15s;
+}
+.post-delete:hover{background:var(--danger-dim);color:var(--danger)}
+
+.post-card-body{padding:1rem}
+
+.post-datetime{
+  display:flex;align-items:center;gap:.5rem;
+  margin-bottom:.7rem;
+}
+.post-datetime svg{color:var(--accent);flex-shrink:0}
+.post-datetime input{
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xs);
+  color:var(--text-primary);
+  font-family:var(--font-mono);
+  font-size:.82rem;
+  padding:.35rem .6rem;
+  outline:none;
+  transition:border-color .2s;
+}
+.post-datetime input:focus{border-color:var(--accent)}
+/* datetime-local のカラースキーム */
+.post-datetime input::-webkit-calendar-picker-indicator{filter:invert(.7)}
+
+.post-text-area{position:relative;margin-bottom:.8rem}
+.post-textarea{
+  width:100%;
+  min-height:72px;
+  padding:.7rem .8rem;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text-primary);
+  font-family:var(--font-body);
+  font-size:.88rem;
+  line-height:1.6;
+  resize:vertical;
+  outline:none;
+  transition:border-color .2s;
+}
+.post-textarea:focus{border-color:var(--accent)}
+.char-counter{
+  position:absolute;bottom:.5rem;right:.6rem;
+  font-family:var(--font-mono);
+  font-size:.7rem;
+  color:var(--text-muted);
+  pointer-events:none;
+  transition:color .2s;
+}
+.char-counter.warning{color:var(--warning)}
+.char-counter.over{color:var(--danger);font-weight:600}
+
+/* === IMAGE SECTION === */
+.post-images{
+  margin-bottom:.6rem;
+}
+.images-grid{
+  display:flex;gap:.5rem;
+  flex-wrap:wrap;
+  margin-bottom:.5rem;
+}
+.image-thumb{
+  position:relative;
+  width:88px;height:88px;
+  border-radius:var(--radius-sm);
+  overflow:hidden;
+  border:1px solid var(--border);
+  cursor:grab;
+  transition:all .2s;
+  flex-shrink:0;
+}
+.image-thumb:hover{border-color:var(--accent);transform:scale(1.03)}
+.image-thumb img{
+  width:100%;height:100%;
+  object-fit:cover;
+  display:block;
+}
+.image-thumb .image-remove{
+  position:absolute;top:4px;right:4px;
+  width:22px;height:22px;
+  background:rgba(0,0,0,.7);
+  border:none;border-radius:50%;
+  color:#fff;font-size:12px;
+  cursor:pointer;
+  display:grid;place-items:center;
+  opacity:0;transition:opacity .2s;
+  backdrop-filter:blur(4px);
+}
+.image-thumb:hover .image-remove{opacity:1}
+.image-thumb .image-remove:hover{background:var(--danger)}
+
+.image-add-zone{
+  display:flex;align-items:center;gap:.5rem;
+  flex-wrap:wrap;
+}
+.image-add-btn{
+  width:88px;height:88px;
+  border:1.5px dashed var(--border);
+  border-radius:var(--radius-sm);
+  display:grid;place-items:center;
+  cursor:pointer;
+  color:var(--text-muted);
+  font-size:1.3rem;
+  transition:all .2s;
+  background:transparent;
+  flex-shrink:0;
+}
+.image-add-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.image-add-btn.disabled{opacity:.3;pointer-events:none}
+
+.image-url-input{
+  flex:1;min-width:200px;
+  display:flex;gap:.4rem;
+}
+.image-url-input input{
+  flex:1;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xs);
+  color:var(--text-primary);
+  font-size:.78rem;
+  padding:.4rem .6rem;
+  outline:none;
+  font-family:var(--font-mono);
+  transition:border-color .2s;
+}
+.image-url-input input:focus{border-color:var(--accent)}
+.image-url-input input::placeholder{color:var(--text-muted)}
+
+.image-label{
+  font-size:.72rem;
+  color:var(--text-muted);
+  margin-bottom:.35rem;
+  display:flex;align-items:center;gap:.3rem;
+}
+
+/* === POST CARD FOOTER === */
+.post-card-footer{
+  display:flex;align-items:center;justify-content:flex-end;
+  gap:.4rem;
+  padding:.5rem 1rem;
+  border-top:1px solid var(--border);
+  background:rgba(0,0,0,.08);
+}
+
+/* === SCHEDULE BUTTON === */
+.schedule-section{
+  position:sticky;bottom:0;
+  background:linear-gradient(to top,var(--bg-deep) 60%,transparent);
+  padding:1.5rem 0 1rem;
+  margin-top:1rem;
+}
+.schedule-btn-wrap{
+  display:flex;align-items:center;justify-content:center;gap:1rem;
+}
+.btn-schedule{
+  padding:.7rem 2rem;
+  font-size:.95rem;
+  border-radius:28px;
+  font-weight:600;
+  letter-spacing:.01em;
+}
+
+/* === LIGHTBOX === */
+.lightbox{
+  position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,.85);
+  display:none;place-items:center;
+  backdrop-filter:blur(8px);
+  cursor:zoom-out;
+}
+.lightbox.open{display:grid}
+.lightbox img{
+  max-width:90vw;max-height:85vh;
+  border-radius:var(--radius);
+  box-shadow:0 8px 40px rgba(0,0,0,.6);
+}
+
+/* === TOAST === */
+.toast{
+  position:fixed;bottom:1.5rem;right:1.5rem;z-index:300;
+  display:flex;flex-direction:column;gap:.5rem;
+  pointer-events:none;
+}
+.toast-item{
+  padding:.6rem 1rem;
+  border-radius:var(--radius-sm);
+  font-size:.8rem;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  box-shadow:var(--shadow);
+  pointer-events:auto;
+  animation:toastIn .3s ease;
+  display:flex;align-items:center;gap:.5rem;
+}
+.toast-item.success{border-color:var(--success);color:var(--success)}
+.toast-item.error{border-color:var(--danger);color:var(--danger)}
+.toast-item.info{border-color:var(--accent);color:var(--accent)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}}
+
+/* === EMPTY STATE === */
+.empty-state{
+  text-align:center;
+  padding:3rem 1rem;
+  color:var(--text-muted);
+}
+.empty-state svg{margin-bottom:1rem;opacity:.3}
+.empty-state p{font-size:.88rem;line-height:1.7}
+
+/* === RESPONSIVE === */
+@media(max-width:640px){
+  .header{padding:0 1rem}
+  .main{padding:1rem}
+  .md-section-header{flex-direction:column;align-items:flex-start;gap:.3rem}
+  .summary-bar{gap:.4rem}
+  .summary-chip{padding:.25rem .5rem;font-size:.72rem}
+  .post-card-body{padding:.8rem}
+  .image-thumb{width:72px;height:72px}
+  .image-add-btn{width:72px;height:72px}
+  .image-url-input{min-width:140px}
+  .schedule-btn-wrap{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">Xs</div>
+      <div class="logo-text">x-post-scheduler<span>v1.0</span></div>
+    </div>
+    <div class="session-indicator" title="X セッション有効">
+      <span class="session-dot"></span>
+      セッション有効
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- MARKDOWN INPUT -->
+  <section class="md-section">
+    <div class="md-section-header">
+      <div class="md-section-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Markdown 入力
+      </div>
+      <div class="md-format-hint">テーブル / リスト / 見出し形式に対応</div>
+    </div>
+    <div class="md-drop-zone" id="dropZone">
+      <textarea class="md-textarea" id="mdInput" placeholder="AI で生成した投稿スケジュールの Markdown をここに貼り付け...&#10;&#10;例:&#10;## 2026-03-27 09:00&#10;おはようございます！今日も素晴らしい一日に&#10;&#10;## 2026-03-28 12:00&#10;ランチタイムにおすすめ..."></textarea>
+    </div>
+    <div class="md-actions">
+      <label class="md-file-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        ファイルを選択
+        <input type="file" accept=".md,.txt,.markdown" id="fileInput">
+      </label>
+      <button class="btn btn-primary" onclick="parseMd()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        読み込み
+      </button>
+    </div>
+  </section>
+
+  <!-- SUMMARY BAR -->
+  <div class="summary-bar" id="summaryBar" style="display:none">
+    <div class="summary-chip total">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      <span>合計</span>
+      <span class="num" id="totalCount">0</span>
+    </div>
+    <div class="summary-chip has-images">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>画像付き</span>
+      <span class="num" id="imageCount">0</span>
+    </div>
+    <div class="summary-chip has-errors" id="errorChip" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <span>エラー</span>
+      <span class="num" id="errorCount">0</span>
+    </div>
+    <div class="summary-spacer"></div>
+    <button class="btn btn-ghost btn-sm" onclick="clearAll()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      クリア
+    </button>
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div class="progress-section" id="progressSection">
+    <div class="progress-bar-outer">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="progress-label">
+      <span id="progressText">予約実行中...</span>
+      <span id="progressCount">0 / 0</span>
+    </div>
+  </div>
+
+  <!-- POST CARDS -->
+  <div class="post-list" id="postList">
+    <div class="empty-state" id="emptyState">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <p>Markdown を入力して「読み込み」を押すと<br>投稿一覧がここに表示されます</p>
+    </div>
+  </div>
+
+  <!-- SCHEDULE BUTTON -->
+  <div class="schedule-section" id="scheduleSection" style="display:none">
+    <div class="schedule-btn-wrap">
+      <button class="btn btn-primary btn-schedule" id="scheduleBtn" onclick="startSchedule()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        一括予約実行
+      </button>
+      <button class="btn btn-ghost btn-sm" id="dryRunBtn" onclick="startDryRun()">
+        ドライラン
+      </button>
+    </div>
+  </div>
+
+</main>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast" id="toastContainer"></div>
+
+<script>
+// ===== STATE =====
+let posts = [];
+let isScheduling = false;
+
+// ===== DEMO IMAGES (SVG data URIs) =====
+const DEMO_IMAGES = [
+  `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect fill="#1a3a5c" width="400" height="400"/><circle cx="120" cy="140" r="60" fill="#1da1f2" opacity=".3"/><rect x="180" y="200" width="160" height="120" rx="12" fill="#2a5a8c" opacity=".5"/><text x="200" y="340" fill="#8899a6" font-size="14" font-family="sans-serif">sample-1.jpg</text></svg>')}`,
+  `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect fill="#1c2e1c" width="400" height="400"/><circle cx="200" cy="180" r="80" fill="#00c853" opacity=".2"/><path d="M100 300 L200 200 L300 280 L350 240 L350 400 L50 400 Z" fill="#2a5c2a" opacity=".4"/><text x="200" y="340" fill="#8899a6" font-size="14" font-family="sans-serif">sample-2.jpg</text></svg>')}`,
+  `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect fill="#2e1c2e" width="400" height="400"/><rect x="80" y="80" width="100" height="100" rx="8" fill="#f4212e" opacity=".2" transform="rotate(15 130 130)"/><circle cx="280" cy="260" r="70" fill="#ffab00" opacity=".15"/><text x="200" y="340" fill="#8899a6" font-size="14" font-family="sans-serif">sample-3.jpg</text></svg>')}`,
+];
+
+// ===== MOCK DATA =====
+const DEMO_POSTS = [
+  {
+    id: crypto.randomUUID(),
+    scheduledAt: '2026-03-27T09:00',
+    text: 'おはようございます！\n今日も素晴らしい一日の始まりです。\n\n朝の習慣を大切にして、充実した一日を過ごしましょう。\n#朝活 #モーニングルーティン',
+    images: [DEMO_IMAGES[0]],
+    status: 'pending',
+    error: null,
+  },
+  {
+    id: crypto.randomUUID(),
+    scheduledAt: '2026-03-27T12:00',
+    text: 'ランチタイムにおすすめの一品をご紹介します。\n\n季節の食材を使った特製パスタ。見た目も味も最高です！\n#ランチ #グルメ #おすすめ',
+    images: [DEMO_IMAGES[1], DEMO_IMAGES[2]],
+    status: 'pending',
+    error: null,
+  },
+  {
+    id: crypto.randomUUID(),
+    scheduledAt: '2026-03-27T18:30',
+    text: '今日の振り返り。\n\n新しいプロジェクトが始まりました。チーム一丸となって頑張ります！来週のリリースに向けて準備を進めています。',
+    images: [],
+    status: 'pending',
+    error: null,
+  },
+  {
+    id: crypto.randomUUID(),
+    scheduledAt: '2026-03-28T08:00',
+    text: '週末の予定はお決まりですか？\n\n天気も良さそうなので、お出かけにぴったりです。\n#週末 #おでかけ',
+    images: [],
+    status: 'failed',
+    error: 'セッションタイムアウト',
+  },
+];
+
+// ===== MARKDOWN PARSER (Demo) =====
+function parseMd() {
+  const md = document.getElementById('mdInput').value.trim();
+  if (!md) {
+    // Load demo data
+    posts = JSON.parse(JSON.stringify(DEMO_POSTS));
+  } else {
+    // Simple heading parser for demo
+    posts = [];
+    const sections = md.split(/^##\s+/m).filter(s => s.trim());
+    sections.forEach(section => {
+      const lines = section.trim().split('\n');
+      const firstLine = lines[0].trim();
+      const dateMatch = firstLine.match(/(\d{4}[-\/]\d{1,2}[-\/]\d{1,2}\s+\d{1,2}:\d{2})/);
+      if (dateMatch) {
+        const dt = dateMatch[1].replace(/\//g, '-');
+        const textLines = lines.slice(1).filter(l => !l.match(/^!\[/) && l.trim());
+        const imageLines = lines.filter(l => l.match(/!\[.*?\]\((https?:\/\/[^)]+)\)/));
+        const images = imageLines.map(l => {
+          const m = l.match(/!\[.*?\]\((https?:\/\/[^)]+)\)/);
+          return m ? m[1] : null;
+        }).filter(Boolean);
+        posts.push({
+          id: crypto.randomUUID(),
+          scheduledAt: dt.replace(' ', 'T'),
+          text: textLines.join('\n').trim(),
+          images: images.length ? images : [],
+          status: 'pending',
+          error: null,
+        });
+      }
+    });
+    if (posts.length === 0) {
+      // Fallback: treat as single post
+      posts = [{
+        id: crypto.randomUUID(),
+        scheduledAt: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+        text: md,
+        images: [],
+        status: 'pending',
+        error: null,
+      }];
+    }
+  }
+  renderAll();
+  showToast('info', `${posts.length} 件の投稿を読み込みました`);
+}
+
+// ===== RENDER =====
+function renderAll() {
+  renderSummary();
+  renderPosts();
+  document.getElementById('scheduleSection').style.display = posts.length ? '' : 'none';
+  document.getElementById('summaryBar').style.display = posts.length ? 'flex' : 'none';
+}
+
+function renderSummary() {
+  document.getElementById('totalCount').textContent = posts.length;
+  document.getElementById('imageCount').textContent = posts.filter(p => p.images.length > 0).length;
+  const errors = posts.filter(p => p.status === 'failed').length;
+  document.getElementById('errorCount').textContent = errors;
+  document.getElementById('errorChip').style.display = errors > 0 ? 'flex' : 'none';
+}
+
+function renderPosts() {
+  const list = document.getElementById('postList');
+  const empty = document.getElementById('emptyState');
+  if (posts.length === 0) {
+    list.innerHTML = '';
+    list.appendChild(empty);
+    return;
+  }
+  empty.remove();
+  list.innerHTML = posts.map((post, i) => renderCard(post, i)).join('');
+  // Attach events
+  posts.forEach((post, i) => {
+    const ta = document.getElementById(`text-${post.id}`);
+    if (ta) {
+      ta.addEventListener('input', () => updateCharCount(post.id));
+      updateCharCount(post.id);
+    }
+  });
+}
+
+function renderCard(post, index) {
+  const statusLabels = {
+    pending: '未予約',
+    scheduling: '予約中...',
+    scheduled: '予約完了',
+    failed: 'エラー',
+  };
+  const imagesHtml = post.images.map((img, imgI) => `
+    <div class="image-thumb" draggable="true" onclick="openLightbox('${img}')">
+      <img src="${img}" alt="画像${imgI + 1}">
+      <button class="image-remove" onclick="event.stopPropagation();removeImage('${post.id}',${imgI})" title="削除">&times;</button>
+    </div>
+  `).join('');
+
+  const canAddImage = post.images.length < 4;
+  const isLocked = isScheduling || post.status === 'scheduled';
+
+  return `
+    <div class="post-card ${post.status}" style="animation-delay:${index * .07}s">
+      <div class="post-card-header">
+        <span class="post-number">#${index + 1}</span>
+        <div class="post-header-right">
+          <span class="status-badge ${post.status}">
+            <span class="status-dot"></span>
+            ${statusLabels[post.status]}
+          </span>
+          <button class="post-delete" onclick="deletePost('${post.id}')" title="削除">&times;</button>
+        </div>
+      </div>
+      <div class="post-card-body">
+        <div class="post-datetime">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <input type="datetime-local" value="${post.scheduledAt}" ${isLocked ? 'disabled' : ''} onchange="updateDateTime('${post.id}', this.value)">
+        </div>
+        <div class="post-text-area">
+          <textarea class="post-textarea" id="text-${post.id}" ${isLocked ? 'disabled' : ''} oninput="updateText('${post.id}', this.value)">${post.text}</textarea>
+          <span class="char-counter" id="counter-${post.id}">0/140</span>
+        </div>
+        <div class="post-images">
+          <div class="image-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            画像 (${post.images.length}/4)
+          </div>
+          <div class="images-grid">
+            ${imagesHtml}
+            ${canAddImage && !isLocked ? `
+              <button class="image-add-btn" onclick="addDemoImage('${post.id}')" title="画像を追加">+</button>
+            ` : ''}
+          </div>
+          ${canAddImage && !isLocked ? `
+            <div class="image-add-zone" style="margin-top:.4rem">
+              <div class="image-url-input">
+                <input type="text" placeholder="画像URLを入力..." id="imgurl-${post.id}">
+                <button class="btn btn-ghost btn-sm" onclick="addImageByUrl('${post.id}')">追加</button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+      ${post.status === 'failed' ? `
+        <div class="post-card-footer">
+          <span style="flex:1;font-size:.75rem;color:var(--danger)">${post.error || '予約に失敗しました'}</span>
+          <button class="btn btn-danger btn-sm" onclick="retryPost('${post.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            リトライ
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// ===== INTERACTIONS =====
+function updateText(id, value) {
+  const post = posts.find(p => p.id === id);
+  if (post) post.text = value;
+  updateCharCount(id);
+}
+
+function updateCharCount(id) {
+  const ta = document.getElementById(`text-${id}`);
+  const counter = document.getElementById(`counter-${id}`);
+  if (!ta || !counter) return;
+  const len = ta.value.length;
+  counter.textContent = `${len}/140`;
+  counter.className = 'char-counter' + (len > 140 ? ' over' : len > 120 ? ' warning' : '');
+}
+
+function updateDateTime(id, value) {
+  const post = posts.find(p => p.id === id);
+  if (post) post.scheduledAt = value;
+}
+
+function deletePost(id) {
+  posts = posts.filter(p => p.id !== id);
+  renderAll();
+  showToast('info', '投稿を削除しました');
+}
+
+function removeImage(postId, imgIndex) {
+  const post = posts.find(p => p.id === postId);
+  if (post) {
+    post.images.splice(imgIndex, 1);
+    renderAll();
+  }
+}
+
+function addDemoImage(postId) {
+  const post = posts.find(p => p.id === postId);
+  if (post && post.images.length < 4) {
+    const idx = post.images.length % DEMO_IMAGES.length;
+    post.images.push(DEMO_IMAGES[idx]);
+    renderAll();
+    showToast('success', '画像を追加しました');
+  }
+}
+
+function addImageByUrl(postId) {
+  const input = document.getElementById(`imgurl-${postId}`);
+  const url = input?.value.trim();
+  if (!url) return;
+  const post = posts.find(p => p.id === postId);
+  if (post && post.images.length < 4) {
+    // In prototype, use demo image
+    const idx = post.images.length % DEMO_IMAGES.length;
+    post.images.push(DEMO_IMAGES[idx]);
+    renderAll();
+    showToast('success', 'URL から画像を追加しました');
+  }
+}
+
+function clearAll() {
+  posts = [];
+  document.getElementById('mdInput').value = '';
+  renderAll();
+  document.getElementById('emptyState')?.remove();
+  document.getElementById('postList').innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <p>Markdown を入力して「読み込み」を押すと<br>投稿一覧がここに表示されます</p>
+    </div>`;
+  document.getElementById('progressSection').classList.remove('active');
+}
+
+// ===== LIGHTBOX =====
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+// ===== SCHEDULING DEMO =====
+async function startSchedule() {
+  if (isScheduling) return;
+  const pending = posts.filter(p => p.status === 'pending' || p.status === 'failed');
+  if (pending.length === 0) {
+    showToast('info', '予約対象の投稿がありません');
+    return;
+  }
+  isScheduling = true;
+  const section = document.getElementById('progressSection');
+  section.classList.add('active');
+  document.getElementById('scheduleBtn').disabled = true;
+  document.getElementById('scheduleBtn').textContent = '予約実行中...';
+
+  let done = 0;
+  for (const post of pending) {
+    post.status = 'scheduling';
+    renderAll();
+    updateProgress(done, pending.length);
+
+    await sleep(1500);
+
+    // Simulate: 80% success, 20% fail
+    if (Math.random() > 0.2) {
+      post.status = 'scheduled';
+      post.error = null;
+    } else {
+      post.status = 'failed';
+      post.error = 'タイムアウト: 投稿ボタンが見つかりません';
+    }
+    done++;
+    updateProgress(done, pending.length);
+    renderAll();
+  }
+
+  isScheduling = false;
+  document.getElementById('scheduleBtn').disabled = false;
+  document.getElementById('scheduleBtn').innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    一括予約実行`;
+
+  const success = posts.filter(p => p.status === 'scheduled').length;
+  const failed = posts.filter(p => p.status === 'failed').length;
+  showToast(failed > 0 ? 'error' : 'success',
+    `完了: ${success}件成功 / ${failed}件失敗`);
+
+  setTimeout(() => section.classList.remove('active'), 3000);
+}
+
+async function startDryRun() {
+  showToast('info', 'ドライラン: 実際の予約は行いません');
+  await startSchedule();
+}
+
+async function retryPost(id) {
+  const post = posts.find(p => p.id === id);
+  if (!post) return;
+  post.status = 'scheduling';
+  renderAll();
+  await sleep(1500);
+  post.status = 'scheduled';
+  post.error = null;
+  renderAll();
+  renderSummary();
+  showToast('success', 'リトライ成功');
+}
+
+function updateProgress(current, total) {
+  const pct = total > 0 ? (current / total * 100) : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressCount').textContent = `${current} / ${total}`;
+  document.getElementById('progressText').textContent =
+    current === total ? '完了' : '予約実行中...';
+}
+
+// ===== DRAG & DROP =====
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      document.getElementById('mdInput').value = ev.target.result;
+      showToast('info', `${file.name} を読み込みました`);
+    };
+    reader.readAsText(file);
+  }
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      document.getElementById('mdInput').value = ev.target.result;
+      showToast('info', `${file.name} を読み込みました`);
+    };
+    reader.readAsText(file);
+  }
+});
+
+// ===== TOAST =====
+function showToast(type, msg) {
+  const container = document.getElementById('toastContainer');
+  const icons = {
+    success: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
+    error: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  };
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.innerHTML = `${icons[type] || ''}${msg}`;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+// ===== UTIL =====
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ESC for lightbox
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+</body>
+</html>
