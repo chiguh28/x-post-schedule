@@ -9,3 +9,4 @@ config.json
 .claude/
 coconala_thumbnails.yaml
 config.example.json
+prototype/

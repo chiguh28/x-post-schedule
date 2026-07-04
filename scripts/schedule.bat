@@ -3,6 +3,8 @@ cd /d "%~dp0.."
 
 if "%~1"=="" (
     echo [x-post-scheduler] Bulk schedule from Markdown file
+    echo   Not logged in to X yet? No problem - Chrome will open
+    echo   automatically for login before scheduling starts.
     echo.
     echo Usage:
     echo   schedule.bat schedule.md

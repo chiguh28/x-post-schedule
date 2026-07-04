@@ -39,11 +39,12 @@ export async function startServer(config: AppConfig, options: { port: number }):
 
   // Session manager
   const sessionManager = new SessionManager(config.sessionDir);
+  let loginInProgress = false;
 
   // Check session status
   const updateSessionStatus = async () => {
     if (!sessionManager.hasSession()) {
-      (global as any).__sessionStatus = { valid: false, message: 'セッションがありません。login コマンドを実行してください。' };
+      (global as any).__sessionStatus = { valid: false, message: 'セッションがありません。「ログイン」を押してください。' };
       return;
     }
     try {
@@ -56,6 +57,31 @@ export async function startServer(config: AppConfig, options: { port: number }):
     } catch {
       (global as any).__sessionStatus = { valid: false, message: 'セッション確認に失敗しました' };
     }
+  };
+
+  // Web UI からのログイントリガー（素の Chrome を起動し、ユーザーがブラウザを閉じるまで待つ）
+  (global as any).__triggerLogin = async (): Promise<{ started: boolean; message: string }> => {
+    if (loginInProgress) {
+      return { started: false, message: '既にログイン処理中です。ブラウザを確認してください。' };
+    }
+    loginInProgress = true;
+    broadcast({ type: 'session', valid: false, message: 'ログイン画面を開いています...' });
+
+    // ブラウザが閉じるまで待つ処理はバックグラウンドで進め、即座にレスポンスを返す
+    (async () => {
+      try {
+        await sessionManager.loginInteractive();
+      } catch (err) {
+        broadcast({ type: 'session', valid: false, message: `ログインに失敗しました: ${String(err)}` });
+        loginInProgress = false;
+        return;
+      }
+      await updateSessionStatus();
+      loginInProgress = false;
+      broadcast({ type: 'session', ...(global as any).__sessionStatus });
+    })();
+
+    return { started: true, message: 'ブラウザが開きます。X にログインしてブラウザを閉じてください。' };
   };
 
   // Schedule handler

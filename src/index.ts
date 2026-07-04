@@ -144,21 +144,29 @@ program
       result.warnings.forEach((w) => console.log(`  ⚠ ${w}`));
     }
 
-    // セッション確認
+    // セッション確認（無ければブラウザでログイン画面を開き、完了を待ってから続行する）
     const sm = new SessionManager(config.sessionDir);
     if (!sm.hasSession()) {
-      console.error('\n[x-post-scheduler] セッションがありません。先に login を実行してください。');
-      process.exit(1);
+      console.log('\n[x-post-scheduler] セッションがありません。ログイン画面を開きます...');
+      await sm.loginInteractive();
     }
 
     // 実行
     console.log(`\n[x-post-scheduler] 予約${opts.dryRun ? '(ドライラン)' : ''}を開始します...`);
-    const browserContext = await sm.createContext({ headless: config.headless });
+    let browserContext = await sm.createContext({ headless: config.headless });
     try {
-      const valid = await sm.isSessionValid(browserContext);
+      let valid = await sm.isSessionValid(browserContext);
       if (!valid) {
-        console.error('[x-post-scheduler] セッション切れ。再ログインしてください。');
-        process.exit(1);
+        console.log('[x-post-scheduler] セッション切れ。再ログイン画面を開きます...');
+        await browserContext.close();
+        await sm.loginInteractive();
+        browserContext = await sm.createContext({ headless: config.headless });
+        valid = await sm.isSessionValid(browserContext);
+        if (!valid) {
+          console.error('[x-post-scheduler] ログインに失敗しました（再ログイン後もセッションが無効です）。');
+          await browserContext.close();
+          process.exit(1);
+        }
       }
 
       const results = await schedulePosts(browserContext, result.posts, {

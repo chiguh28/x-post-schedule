@@ -9,4 +9,15 @@ router.get('/status', (req, res) => {
   res.json(status);
 });
 
+// POST /api/session/login - Chrome を起動してログインフローを開始する（server/index.ts の __triggerLogin に委譲）
+router.post('/login', async (req, res) => {
+  const trigger = (global as any).__triggerLogin;
+  if (!trigger) {
+    res.status(500).json({ started: false, message: 'ログイン機能が初期化されていません' });
+    return;
+  }
+  const result = await trigger();
+  res.json(result);
+});
+
 export default router;

@@ -47,6 +47,8 @@ function handleWsMessage(data) {
   } else if (data.type === 'error') {
     isScheduling = false;
     showToast('error', data.message);
+  } else if (data.type === 'session') {
+    applySessionStatus({ valid: data.valid, message: data.message });
   }
 }
 
@@ -196,19 +198,47 @@ async function clearAll() {
 async function checkSession() {
   try {
     const status = await api('GET', '/session/status');
-    const indicator = document.querySelector('.session-indicator');
-    const dot = indicator.querySelector('.session-dot');
-    const label = indicator.querySelector('.session-label');
-    if (status.valid) {
-      dot.style.background = 'var(--success)';
-      dot.style.boxShadow = '0 0 8px rgba(0,200,83,.5)';
-      label.textContent = 'セッション有効';
-    } else {
-      dot.style.background = 'var(--danger)';
-      dot.style.boxShadow = '0 0 8px rgba(244,33,46,.5)';
-      label.textContent = status.message || 'セッション無効';
-    }
+    applySessionStatus(status);
   } catch {}
+}
+
+// Reflect a session status object onto the header indicator + login button
+function applySessionStatus(status) {
+  const indicator = document.querySelector('.session-indicator');
+  const dot = indicator.querySelector('.session-dot');
+  const label = indicator.querySelector('.session-label');
+  const btn = document.getElementById('loginBtn');
+  if (status.valid) {
+    dot.style.background = 'var(--success)';
+    dot.style.boxShadow = '0 0 8px rgba(0,200,83,.5)';
+    label.textContent = 'セッション有効';
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = 'ログイン';
+  } else {
+    dot.style.background = 'var(--danger)';
+    dot.style.boxShadow = '0 0 8px rgba(244,33,46,.5)';
+    label.textContent = status.message || 'セッション無効';
+    btn.style.display = '';
+  }
+}
+
+// Trigger the login flow: opens a real Chrome window server-side.
+// The user logs in there and closes it; the session indicator updates
+// automatically via WebSocket once done — no separate script to run.
+async function startLogin() {
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.textContent = 'ログイン中...';
+  const result = await api('POST', '/session/login', {});
+  if (result.started) {
+    showToast('info', result.message || 'ブラウザが開きます。ログインしてブラウザを閉じてください。');
+  } else {
+    showToast('error', result.message || 'ログインを開始できませんでした');
+    btn.disabled = false;
+    btn.textContent = 'ログイン';
+  }
+  // 成功/失敗の最終状態は WebSocket の 'session' メッセージで反映される
 }
 
 // === RENDER ===
