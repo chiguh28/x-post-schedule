@@ -2,8 +2,26 @@ import { describe, it, expect, vi } from 'vitest';
 import { schedulePosts } from '../../src/scheduler';
 import { ScheduledPost } from '../../src/types';
 
+/**
+ * 新 UI の予約ダイアログ用セレクト要素モックを作る。
+ * labelId に対応するラベルテキストは labelMap 経由で page.locator('#id') が返す。
+ */
+function makeSelectMock(labelId: string, optionValues: string[]) {
+  return {
+    getAttribute: vi.fn(async (attr: string) =>
+      attr === 'aria-labelledby' ? labelId : null
+    ),
+    locator: vi.fn(() => ({
+      evaluateAll: vi.fn().mockResolvedValue(optionValues),
+      allTextContents: vi.fn().mockResolvedValue(optionValues),
+    })),
+    selectOption: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 function createMockPage() {
-  const mockLocator = {
+  // 汎用ロケーター（既定の振る舞い）
+  const mockLocator: any = {
     first: vi.fn().mockReturnThis(),
     last: vi.fn().mockReturnThis(),
     all: vi.fn().mockResolvedValue([]),
@@ -21,6 +39,65 @@ function createMockPage() {
     textContent: vi.fn().mockResolvedValue(''),
   };
 
+  // 新 UI の予約日時セレクト（月/日/年/時/分）
+  const labelMap: Record<string, string> = {
+    SELECTOR_1_LABEL: '月',
+    SELECTOR_2_LABEL: '日',
+    SELECTOR_3_LABEL: '年',
+    SELECTOR_4_LABEL: '時',
+    SELECTOR_5_LABEL: '分',
+  };
+  const selectMocks = [
+    makeSelectMock('SELECTOR_1_LABEL', ['1', '12']),
+    makeSelectMock('SELECTOR_2_LABEL', ['1', '31']),
+    makeSelectMock('SELECTOR_3_LABEL', ['2026', '2028']),
+    makeSelectMock('SELECTOR_4_LABEL', ['0', '23']), // 24時間制
+    makeSelectMock('SELECTOR_5_LABEL', ['0', '59']),
+  ];
+
+  // 確定ボタン / 予約インジケーター / 予約ボタン用のロケーター
+  const confirmLocator: any = {
+    first: vi.fn().mockReturnThis(),
+    isVisible: vi.fn().mockResolvedValue(true),
+    count: vi.fn().mockResolvedValue(1),
+    getAttribute: vi.fn().mockResolvedValue(null), // aria-disabled=null → 有効
+    click: vi.fn().mockResolvedValue(undefined),
+  };
+  const indicatorLocator = {
+    isVisible: vi.fn().mockResolvedValue(true),
+    count: vi.fn().mockResolvedValue(1),
+  };
+  const tweetButtonLocator = {
+    last: vi.fn().mockReturnThis(),
+    textContent: vi.fn().mockResolvedValue('予約設定'),
+    waitFor: vi.fn().mockResolvedValue(undefined),
+    dispatchEvent: vi.fn().mockResolvedValue(undefined),
+    click: vi.fn().mockResolvedValue(undefined),
+    isVisible: vi.fn().mockResolvedValue(false),
+  };
+  const selectsLocator = {
+    all: vi.fn().mockResolvedValue(selectMocks),
+    count: vi.fn().mockResolvedValue(selectMocks.length),
+    first: vi.fn().mockReturnValue({
+      waitFor: vi.fn().mockResolvedValue(undefined),
+    }),
+  };
+
+  // セレクタ文字列に応じて適切なロケーターを返す
+  const locatorRouter = vi.fn((selector: string) => {
+    if (typeof selector === 'string') {
+      if (selector.includes('select[aria-labelledby]')) return selectsLocator;
+      if (selector.includes('scheduledConfirmationPrimaryAction')) return confirmLocator;
+      if (selector.includes('scheduledTweetIndicator')) return indicatorLocator;
+      if (selector.includes('tweetButton')) return tweetButtonLocator;
+      if (selector.startsWith('#')) {
+        const id = selector.slice(1);
+        return { textContent: vi.fn().mockResolvedValue(labelMap[id] ?? '') };
+      }
+    }
+    return mockLocator;
+  });
+
   const mockPage = {
     goto: vi.fn().mockResolvedValue({ status: () => 200 }),
     url: vi.fn().mockReturnValue('https://x.com/compose/post'),
@@ -28,12 +105,12 @@ function createMockPage() {
     waitForSelector: vi.fn().mockResolvedValue({
       click: vi.fn().mockResolvedValue(undefined),
     }),
-    locator: vi.fn().mockReturnValue(mockLocator),
+    locator: locatorRouter,
     keyboard: { type: vi.fn().mockResolvedValue(undefined) },
     close: vi.fn().mockResolvedValue(undefined),
   };
 
-  return { mockPage, mockLocator };
+  return { mockPage, mockLocator, tweetButtonLocator, confirmLocator };
 }
 
 function createMockContext(mockPage: any) {
@@ -142,7 +219,7 @@ describe('schedulePosts', () => {
   });
 
   it('dryRun では予約ボタンを押さない', async () => {
-    const { mockPage, mockLocator } = createMockPage();
+    const { mockPage, tweetButtonLocator } = createMockPage();
     const ctx = createMockContext(mockPage);
     const posts = [makePost()];
 
@@ -151,9 +228,44 @@ describe('schedulePosts', () => {
       delayBetweenPosts: 0,
     });
 
-    // click は scheduleBtn と textArea.click のみ（tweetButton は押さない）
-    // locator の click は日時ピッカー等で呼ばれるが、schedulePostBtn.click は呼ばれない
-    // ドライラン: 投稿完了として success が返る
+    // ドライラン: 投稿完了として success が返るが、予約ボタンは押さない
     expect(posts[0].status).toBe('scheduled');
+    expect(tweetButtonLocator.dispatchEvent).not.toHaveBeenCalled();
+    expect(tweetButtonLocator.click).not.toHaveBeenCalled();
+  });
+
+  it('予約が適用されていない場合は即時投稿せず failed を返す', async () => {
+    const { mockPage, tweetButtonLocator } = createMockPage();
+    // 予約インジケーターなし & ボタンテキストが "ポストする"（予約未適用）を再現
+    mockPage.locator = vi.fn((selector: string) => {
+      const base = createMockPage().mockPage.locator(selector);
+      if (typeof selector === 'string' && selector.includes('scheduledTweetIndicator')) {
+        return {
+          isVisible: vi.fn().mockResolvedValue(false),
+          count: vi.fn().mockResolvedValue(0),
+        };
+      }
+      if (typeof selector === 'string' && selector.includes('tweetButton')) {
+        return {
+          last: vi.fn().mockReturnThis(),
+          textContent: vi.fn().mockResolvedValue('ポストする'),
+          waitFor: vi.fn().mockResolvedValue(undefined),
+          dispatchEvent: tweetButtonLocator.dispatchEvent,
+          click: tweetButtonLocator.click,
+          isVisible: vi.fn().mockResolvedValue(false),
+        };
+      }
+      return base;
+    }) as any;
+    const ctx = createMockContext(mockPage);
+    const posts = [makePost()];
+
+    const results = await schedulePosts(ctx, posts, { delayBetweenPosts: 0 });
+
+    expect(results[0].status).toBe('failed');
+    expect(results[0].error).toContain('即時投稿を防止');
+    // 予約ボタンは一切押されない
+    expect(tweetButtonLocator.dispatchEvent).not.toHaveBeenCalled();
+    expect(tweetButtonLocator.click).not.toHaveBeenCalled();
   });
 });

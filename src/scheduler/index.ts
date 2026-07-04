@@ -1,6 +1,6 @@
 import { BrowserContext, Page } from 'playwright';
 import { ScheduledPost, ScheduleResult } from '../types';
-import { setScheduleDateTime } from './x-calendar';
+import { setScheduleDateTime, isScheduleApplied } from './x-calendar';
 
 /**
  * 単一の投稿を予約する
@@ -60,7 +60,15 @@ export async function schedulePost(
     // 4. 予約日時を設定
     await setScheduleDateTime(page, post.scheduledAt);
 
-    // 5. 予約ボタンをクリック (ドライランでない場合)
+    // 5. 予約が適用されているか検証（未適用なら即時投稿を防ぐため中断）
+    if (!(await isScheduleApplied(page))) {
+      throw new Error(
+        '予約設定が適用されていません。即時投稿を防止するため処理を中断しました。'
+      );
+    }
+    console.log('[x-post-scheduler] 予約設定の適用を確認');
+
+    // 6. 予約ボタンをクリック (ドライランでない場合)
     if (options?.dryRun) {
       console.log('[x-post-scheduler] ドライラン: 予約ボタンは押しません');
       await page.waitForTimeout(2000);
