@@ -1,0 +1,6 @@
+{
+  "sessionDir": "./.session",
+  "headless": false,
+  "delayBetweenPosts": 5000,
+  "timezone": "Asia/Tokyo"
+}

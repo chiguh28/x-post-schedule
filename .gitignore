@@ -8,5 +8,4 @@ config.json
 .omc/
 .claude/
 coconala_thumbnails.yaml
-config.example.json
 prototype/
